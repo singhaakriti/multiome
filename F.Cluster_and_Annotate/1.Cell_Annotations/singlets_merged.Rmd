@@ -1,0 +1,420 @@
+
+
+This script processes the merged singlet seurat object for downstream cluster analysis
+
+Saved seurat object (of both singlets and doublets) for future reference, this is post SoupX ambient RNA removal. Has doublet classification but doublets are not removed.
+```{r}
+#saveRDS(merged_srat, "Merged_Seurat_Object_NCBIGenome.rds")
+```
+
+Load libraries
+```{r}
+library(Seurat)
+library(SeuratObject)
+library(ggplot2)
+library(dplyr)
+```
+
+
+Load in the merged object
+```{r}
+merged_srat <- readRDS("/Users/aakritisingh/Documents/Merged_Seurat_Object_NCBIGenome.rds")
+```
+
+```{r}
+merged_srat
+```
+
+Remove doublets 
+```{r}
+singlets_merged <- subset(merged_srat, subset = DF.classifications == 'Singlet')
+```
+
+Seurat preprocessing
+```{r}
+singlets_merged <- NormalizeData(singlets_merged)
+singlets_merged <- FindVariableFeatures(singlets_merged)
+singlets_merged <- ScaleData(singlets_merged)
+singlets_merged <- RunPCA(singlets_merged)
+ElbowPlot(singlets_merged)
+singlets_merged <- RunUMAP(singlets_merged, dims = 1:20)
+DimPlot(singlets_merged, reduction = "umap")
+DimPlot(singlets_merged, reduction = "umap", group.by = "orig.ident")
+
+singlets_merged <- FindNeighbors(singlets_merged, dims = 1:20)
+singlets_merged <- FindClusters(singlets_merged, resolution = 0.3)
+DimPlot(singlets_merged, reduction = "umap")
+DimPlot(singlets_merged, reduction = "umap", group.by = "orig.ident", label = TRUE)
+DimPlot(singlets_merged, reduction = "umap", group.by = "DF.classifications")
+
+```
+
+--------------------------------------------------
+
+
+FULL LIST OF MITO GENES:
+KEG92_t01
+KEG92_r02
+KEG92_t02
+KEG92_r01
+KEG92_t03
+KEG92_p13
+KEG92_t04
+KEG92_t05
+KEG92_t06
+KEG92_p12
+KEG92_t07
+KEG92_t08
+KEG92_t09
+KEG92_t10
+KEG92_t11
+KEG92_p11
+KEG92_t12
+KEG92_t13
+KEG92_p10
+KEG92_t14
+KEG92_p09
+KEG92_p08
+KEG92_p07
+KEG92_t15
+KEG92_p06
+KEG92_t16
+KEG92_p05
+KEG92_p04
+KEG92_t17
+KEG92_t18
+KEG92_t19
+KEG92_p03
+KEG92_p02
+KEG92_t20
+KEG92_p01
+KEG92_t21
+KEG92_t22
+KEG92_t23
+
+REMINDER: THEY ARE LISTED WITH _ IN GTF, BUT IN SEURAT THEY GET CONVERTED TO -
+
+Check: are all these genes in our data? (Should be TRUE)
+```{r}
+all.mito.features <- c("KEG92-t01", "KEG92-r02", "KEG92-t02", "KEG92-r01", "KEG92-t03", "KEG92-p13", "KEG92-t04", "KEG92-t05", "KEG92-t06", "KEG92-p12", "KEG92-t07", "KEG92-t08", "KEG92-t09", "KEG92-t10", "KEG92-t11", "KEG92-p11", "KEG92-t12", "KEG92-t13", "KEG92-p10", "KEG92-t14", "KEG92-p09", "KEG92-p08", "KEG92-p07", "KEG92-t15", "KEG92-p06", "KEG92-t16", "KEG92-p05", "KEG92-p04", "KEG92-t17", "KEG92-t18", "KEG92-t19", "KEG92-p03", "KEG92-p02", "KEG92-t20", "KEG92-p01", "KEG92-t21", "KEG92-t22", "KEG92-t23")
+all(all.mito.features %in% rownames(singlets_merged))
+```
+Add mito percentage to object 
+```{r}
+singlets_merged[["full_mito_percent"]] <- PercentageFeatureSet(singlets_merged, features = c("KEG92-t01", "KEG92-r02", "KEG92-t02", "KEG92-r01", "KEG92-t03", "KEG92-p13", "KEG92-t04", "KEG92-t05", "KEG92-t06", "KEG92-p12", "KEG92-t07", "KEG92-t08", "KEG92-t09", "KEG92-t10", "KEG92-t11", "KEG92-p11", "KEG92-t12", "KEG92-t13", "KEG92-p10", "KEG92-t14", "KEG92-p09", "KEG92-p08", "KEG92-p07", "KEG92-t15", "KEG92-p06", "KEG92-t16", "KEG92-p05", "KEG92-p04", "KEG92-t17", "KEG92-t18", "KEG92-t19", "KEG92-p03", "KEG92-p02", "KEG92-t20", "KEG92-p01", "KEG92-t21", "KEG92-t22", "KEG92-t23"), assay = 'RNA')
+```
+View mito percentage as violin plot
+```{r}
+VlnPlot(singlets_merged, features = c("full_mito_percent"))
+```
+Save object to share outside 
+```{r}
+singlets_merged <- readRDS("/Users/aakritisingh/Merged_Seurat_Object_NCBIGenome_Singlets_FullMito.rds")
+```
+Filter by mito percent 
+```{r}
+singlets_merged <- subset(singlets_merged, subset = full_mito_percent < 10)
+```
+
+Seurat pre-processing 
+```{r}
+singlets_merged <- NormalizeData(singlets_merged)
+singlets_merged <- FindVariableFeatures(singlets_merged)
+singlets_merged <- ScaleData(singlets_merged)
+singlets_merged <- RunPCA(singlets_merged)
+ElbowPlot(singlets_merged)
+singlets_merged <- RunUMAP(singlets_merged, dims = 1:20)
+DimPlot(singlets_merged, reduction = "umap")
+DimPlot(singlets_merged, reduction = "umap", group.by = "orig.ident")
+
+singlets_merged <- FindNeighbors(singlets_merged, dims = 1:20)
+singlets_merged <- FindClusters(singlets_merged, resolution = 0.3)
+DimPlot(singlets_merged, reduction = "umap")
+DimPlot(singlets_merged, reduction = "umap", group.by = "orig.ident", label = TRUE)
+```
+
+View UMAP
+```{r}
+DimPlot(singlets_merged, reduction = "umap", label = TRUE)
+```
+
+Get markers for each cluster:
+
+```{r}
+cluster0.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 0, only.pos = TRUE)
+head(cluster0.markers, n = 10)
+```
+
+
+```{r}
+cluster1.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 1, only.pos = TRUE)
+head(cluster1.markers, n = 10)
+```
+
+```{r}
+cluster2.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 2, only.pos = TRUE)
+head(cluster2.markers, n = 10)
+```
+
+oligodendrocyte (brain?)
+```{r}
+cluster3.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 3, only.pos = TRUE)
+head(cluster3.markers, n = 10)
+```
+
+
+```{r}
+cluster4.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 4, only.pos = TRUE)
+head(cluster4.markers, n = 10)
+```
+
+```{r}
+cluster5.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 5, only.pos = TRUE)
+head(cluster5.markers, n = 10)
+```
+elav3: oligodendrocytes
+
+```{r}
+cluster6.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 6, only.pos = TRUE)
+head(cluster6.markers, n = 10)
+```
+col5a1: connective tissue
+ttn: muscle contraction (cardiomyocytes)
+pdlim4: Respiratory epithelial cells
+
+
+```{r}
+cluster7.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 7, only.pos = TRUE)
+head(cluster7.markers, n = 10)
+```
+
+pdia2: pancreatic exocrine
+tmprss9: spermatogenesis
+```{r}
+cluster8.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 8, only.pos = TRUE)
+head(cluster8.markers, n = 10)
+```
+
+bricd5: neuronal signalling
+otog: spermatogenesis
+epcam: enterocytes
+```{r}
+cluster9.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 9, only.pos = TRUE)
+head(cluster9.markers, n = 10)
+```
+
+Adipocyte+Endothelial cluster
+```{r}
+cluster10.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 10, only.pos = TRUE)
+head(cluster10.markers, n = 10)
+```
+
+```{r}
+cluster11.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 11, only.pos = TRUE)
+head(cluster11.markers, n = 10)
+```
+
+```{r}
+cluster12.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 12, only.pos = TRUE)
+head(cluster12.markers, n = 10)
+```
+
+```{r}
+cluster13.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 13, only.pos = TRUE)
+head(cluster13.markers, n = 10)
+```
+```{r}
+cluster14.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 14, only.pos = TRUE)
+head(cluster14.markers, n = 10)
+```
+
+```{r}
+cluster15.markers <- FindMarkers(JoinLayers(singlets_merged), ident.1 = 15, only.pos = TRUE)
+head(cluster15.markers, n = 10)
+```
+
+View violin plot for a single marker 
+```{r}
+VlnPlot(singlets_merged, features = c("cmn"))
+```
+
+```{r}
+FeaturePlot(singlets_merged, features = c("ngfrb"))
+```
+
+```{r}
+VlnPlot(merged_srat, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), group.by = "orig.ident")
+```
+
+
+
+Below script keeps only those with expression for rbfox3a and creates a violin plot: 
+
+```{r}
+merged_one <- subset(x = singlets_merged, subset = rbfox3a > 0)
+merged_one[["RNA"]]$data
+
+vln_df2 <- data.frame(FetchData(object = merged_one, vars = c("rbfox3a"), layer = "data"), cluster = merged_one$seurat_clusters)
+vln_df2
+
+feature2 <- FetchData(object = merged_one, vars = c("rbfox3a"), layer = "data")
+feature2
+ggplot(vln_df2, aes(x = cluster, y = feature2[["rbfox3a"]])) + geom_violin(aes(fill = cluster), trim=TRUE, scale = "width") + geom_jitter() + geom_point(size = 1)
+
+
+```
+
+```{r}
+singlets_merged <- singlets_merged %>%
+  mutate(condition = ifelse(grepl('Development', samples), 'Development', 'Diapause')) %>%
+  column_to_rownames(var = 'samples')
+```
+
+```{r}
+# find markers for every cluster compared to all remaining cells, report only the positive
+# ones
+pbmc.markers <- FindAllMarkers(singlets_merged)
+pbmc.markers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC > 1)
+```
+
+```{r}
+pbmc.markers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC > 1) %>%
+    slice_head(n = 5) %>%
+    ungroup() -> top10
+DoHeatmap(singlets_merged, features = top10$gene) + NoLegend()
+```
+
+```{r}
+FeaturePlot(singlets_merged, features = c("rbfox3a"))
+```
+
+
+
+```{r}
+
+cluster2_features <- list(c('elavl3','dlb','pcdh2ac','dcc','dla','ebf2','LOC107388508','LOC107376386','LOC107375999','LOC107390366'))
+singlets_merged <- AddModuleScore(object = singlets_merged,features = cluster2_features,ctrl = 5,name = 'Cluster2Features')
+
+head(singlets_merged[[]])
+FeaturePlot(singlets_merged, "Cluster2Features1")
+
+
+```
+
+```{r}
+cluster9_features <- list(c("LOC107373641","LOC107372897","pdia2","LOC107382985","tmprss9","spint2","LOC107378625","LOC107382276","prkcaa","elapor1"))
+singlets_merged <- AddModuleScore(object = singlets_merged,features = cluster9_features,ctrl = 5,name = 'Cluster9Features')
+
+head(singlets_merged[[]])
+
+FeaturePlot(singlets_merged, features = "Cluster9Features1")
+```
+
+How many cells are in each cluster?
+```{r}
+table(Idents(singlets_merged))
+```
+To change colors of UMAP
+```{r}
+df <- structure(c(9882L, 4715L, 4120L, 1466L, 370L, 307L, 367L, 306L, 102L, 7762L, 902L, 854L, 1050L, 296L, 129L, 150L, 0L, 0L), .Dim = c(9L, 2L), .Dimnames = structure(list(c("Brain", "Neuron", "Somite", "Epidermis", "Hatching Gland", "Endothelial", "Blood", "Pigment", "Notochord"), c("Development", "Diapause")), .Names = c("", 
+  "")), class = "table")
+df <- data.frame(df)
+df
+```
+
+```{r}
+library(dplyr)
+DF <- df %>% rename(Cell_Type = Var1, Condition = Var2) %>%
+  group_by(Condition) %>% 
+  mutate(Percent = Freq / sum(Freq)*100)
+DF
+```
+
+```{r}
+library(ggplot2)
+ggplot(DF, aes(x = Condition, y = Percent, fill = Cell_Type))+
+  geom_bar(stat = "identity")
+```
+
+```{r}
+cd_genes <- c("plp1a", "elavl3", "mfap2", "six3a", "epcam", "ttn.2", "stm", "tmprss9", "egfl7", "tspan36", "hbbe2", "cmn")
+DotPlot(object = development, features = cd_genes, dot.scale = 10)
+```
+
+```{r}
+RidgePlot(development, features = c("elavl3"), ncol = 2)
+```
+
+```{r}
+FeaturePlot(singlets_merged, reduction = "umap", features = c("robo3"))
+```
+
+```{r}
+my_seurat <- subset(singlets_merged, idents = 0:15)
+
+levels(Idents(my_seurat))
+
+my_cols <- c('3'='#F68282','15'='#31C53F','5'='#1FA195','1'='#AC8F14','13'='#D4D915',
+  '14'='#28CECA','9'='#ff9a36','8'='#F68282','11'='#aeadb3','6'='#1FA195',
+  '2'='#CCB1F1','12'='#25aff5','7'='#CCB1F1','4'='#B95FBB','0'='#AC8F14',
+  '10'='#F68282')
+
+
+# my_cols <- c('3'='#F68282','15'='#31C53F','5'='#1FA195','1'='#B95FBB','13'='#D4D915',
+#  '14'='#28CECA','9'='#ff9a36','8'='#2FF18B','11'='#aeadb3','6'='#faf4cf',
+#  '2'='#CCB1F1','12'='#25aff5','7'='#A4DFF2','4'='#4B4BF7','0'='#AC8F14',
+#  '10'='#E6C122')
+
+my_cols2 <- my_cols[order(as.integer(names(my_cols)))]
+scales::show_col(my_cols2)
+
+
+DimPlot(my_seurat,
+        cols = my_cols2, repel=TRUE)
+
+# DoHeatmap(my_seurat,
+          # features = c("elavl3"),
+          # group.colors = my_cols2)
+```
+
+```{r}
+DimPlot(singlets_merged, group.by = "orig.ident")
+```
+
+```{r}
+color_change <- singlets_merged
+color_change
+```
+
+```{r}
+head(x = color_change[[]])
+```
+
+```{r}
+Idents(color_change) <- 'orig.ident'
+color_change <- RenameIdents(object = color_change, `CH_Development` = "Development_Replicate_1", `SG_Development` = "Development_Replicate_2", `CH_Diapause` = "Diapause_Replicate_1", `SG_Diapause` = "Diapause_Replicate_2")
+
+Idents(color_change)
+
+color_change[[]]
+```
+
+```{r}
+Idents(color_change) <- 'orig.ident'
+color_change <- RenameIdents(object = color_change, `CH_Development` = "Development_Replicate_1", `SG_Development` = "Development_Replicate_2", `CH_Diapause` = "Diapause_Replicate_1", `SG_Diapause` = "Diapause_Replicate_2")
+color_change[[]]
+```
+
+```{r}
+Idents(color_change)
+color_change[["ident"]] <- Idents((color_change))
+color_change[[]]
+```
+
+```{r}
+DimPlot(color_change, group.by = "ident", cols = c("#FBA91A", "#FBA91A", "#3F80C2", "#3F80C2"))
+```

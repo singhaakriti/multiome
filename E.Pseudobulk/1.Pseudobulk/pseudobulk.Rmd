@@ -1,0 +1,99 @@
+PSEUDOBULK WITH POST SOUPX FILTERED AND POST DOUBLET REMOVAL
+
+This has doublets currently 
+```{r}
+srat_ch_dev_filtered@meta.data
+srat_ch_dia_filtered
+srat_sg_dev_filtered
+srat_sg_dia_filtered
+```
+
+Filter out the doublets
+```{r}
+sing_ch_dev <- subset(srat_ch_dev_filtered, subset = DF.classifications_0.25_0.18_691 == "Singlet")
+sing_ch_dia <- subset(srat_ch_dia_filtered, subset = DF.classifications_0.25_0.3_172 == "Singlet")
+sing_sg_dev <- subset(srat_sg_dev_filtered, subset = DF.classifications_0.25_0.16_1282 == "Singlet")
+sing_sg_dia <- subset(srat_sg_dia_filtered, subset = DF.classifications_0.25_0.3_695 == "Singlet")
+```
+
+Merge samples together 
+```{r}
+sing_merged <- merge(sing_ch_dev, y = c(sing_ch_dia, sing_sg_dev, sing_sg_dia), add.cell.ids = c("CH_Development", "CH_Diapause", "SG_Development", "SG_Diapause"), project = "multiome")
+```
+
+Run Seurat processing pipeline 
+```{r}
+sing_merged <- subset(sing_merged, subset = nFeature_RNA > 200 & nFeature_RNA < 2000 & percent.mt < 8)
+sing_merged <- NormalizeData(sing_merged)
+sing_merged <- FindVariableFeatures(sing_merged)
+sing_merged <- ScaleData(sing_merged)
+sing_merged <- RunPCA(sing_merged)
+ElbowPlot(sing_merged)
+sing_merged <- RunUMAP(sing_merged, dims = 1:20)
+DimPlot(sing_merged, reduction = "umap", group.by = "orig.ident", label = TRUE)
+```
+
+
+Seurat pseudobulk 'aggregateexpression' command 
+```{r}
+cts_notgrouped <- AggregateExpression(sing_merged, group.by = "orig.ident", assays = "RNA", return.seurat = FALSE)
+cts_notgrouped
+```
+```{r}
+# Keep only RNA data
+cts_notgrouped_RNA <- cts_notgrouped$RNA
+cts_notgrouped_RNA
+
+# Get the column napes 
+colData_notgrouped <- data.frame(samples = colnames(cts_notgrouped_RNA))
+
+# Rename columns by Development or Diapause based on their originial name (CH/SG_Dia/Dev)
+colData_notgrouped <- colData_notgrouped %>%
+  mutate(condition = ifelse(grepl('Development', samples), 'Development', 'Diapause')) %>%
+  column_to_rownames(var = 'samples')
+
+# Check 
+colData_notgrouped
+```
+
+Run DESeq
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = round(cts_notgrouped_RNA), 
+                       colData = colData_notgrouped,
+                       design = ~condition)
+```
+
+```{r}
+# Keep those only with counts > 10
+keep <- rowSums(counts(dds)) <= 10
+dds <- dds[keep,]
+
+# Run dds
+dds <- DESeq(dds)
+
+# Get matrix name 
+# condition Diapause vs Development
+resultsNames(dds)
+
+# Get matrix
+res <- results(dds, name = "condition_Diapause_vs_Development")
+
+# View
+res
+```
+
+Export 
+```{r}
+# Write column with gene name 
+res$Gene <- rownames(res)
+res <- res [, c(ncol(res), 1:(ncol(res)-1))]
+res
+
+# Make dataframe
+resdf <- as.data.frame(res)
+
+# export as csv
+write_csv(resdf, "/Users/aakritisingh/Documents/differential_expression_psuedobulk_multiome_post_soupx_df.csv")
+
+```
+

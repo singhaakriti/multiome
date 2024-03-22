@@ -1,0 +1,257 @@
+
+Post SoupX Integration w/ Doublet Finder
+
+Load packages
+```{r}
+library(Seurat)
+library(DoubletFinder)
+library(ggplot2)
+library(tidyverse)
+```
+
+Load in counts file (POST SOUPX AMBIENT RNA REMOVAL)
+```{r}
+ch_dev_counts <- Read10X("/Users/aakritisingh/Documents/SoupX_out_files/SoupX_out_ch_dev_counts")
+srat_ch_dev <- CreateSeuratObject(counts = ch_dev_counts, project = "CH_Development")
+srat_ch_dev
+```
+
+```{r}
+# PREPROCESSING
+# Run through Seurat preprocessing steps
+
+srat_ch_dev[["percent.mt"]] <- PercentageFeatureSet(srat_ch_dev, features = c("KEG92-p13", "KEG92-p12", "KEG92-p11", "KEG92-p10", "KEG92-p09", "KEG92-p08", "KEG92-p07", "KEG92-p06", "KEG92-p05", "KEG92-p04", "KEG92-p03", "KEG92-p02", "KEG92-p01"), assay = 'RNA')
+VlnPlot(srat_ch_dev, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol=3)
+srat_ch_dev_filtered <- subset(srat_ch_dev, subset = nFeature_RNA > 200 & nFeature_RNA < 1200 & percent.mt < 10)
+VlnPlot(srat_ch_dev_filtered, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+srat_ch_dev_filtered <- NormalizeData(object = srat_ch_dev_filtered)
+srat_ch_dev_filtered <- FindVariableFeatures(object = srat_ch_dev_filtered)
+srat_ch_dev_filtered <- ScaleData(object = srat_ch_dev_filtered)
+srat_ch_dev_filtered <- RunPCA(object = srat_ch_dev_filtered)
+ElbowPlot(srat_ch_dev_filtered)
+srat_ch_dev_filtered <- FindNeighbors(object = srat_ch_dev_filtered, dims = 1:20) # must be adjusted per sample
+srat_ch_dev_filtered <- FindClusters(object = srat_ch_dev_filtered)
+srat_ch_dev_filtered <- RunUMAP(object = srat_ch_dev_filtered, dims = 1:20)
+
+# PK IDENTIFICATION
+sweep.res.list_srat_ch_dev_filtered <- paramSweep(srat_ch_dev_filtered, PCs = 1:20, sct = FALSE)
+sweep.stats_srat_ch_dev_filtered <- summarizeSweep(sweep.res.list_srat_ch_dev_filtered, GT = FALSE)
+sweep.stats_srat_ch_dev_filtered
+bcmvn_srat_ch_dev_filtered <- find.pK(sweep.stats_srat_ch_dev_filtered)
+ggplot(bcmvn_srat_ch_dev_filtered, aes(pK, BCmetric, group = 1)) +
+  geom_point() +
+  geom_line()
+pK <- bcmvn_srat_ch_dev_filtered %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK) 
+pK <- as.numeric(as.character(pK[[1]]))
+
+# HOMOTYPIC DOUBLETS
+annotations <- srat_ch_dev_filtered@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)         
+nExp_poi <- round(0.077*nrow(srat_ch_dev_filtered@meta.data))  # must be adjusted per sample
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+ 
+# RUN DOUBLET FINDER 
+srat_ch_dev_filtered <- doubletFinder(srat_ch_dev_filtered, 
+                                     PCs = 1:20, # based on dims
+                                     pN = 0.25, # default set
+                                     pK = pK, # provide optimal pK value through the variable
+                                     nExp = nExp_poi.adj, # provide expected # of doublets after homtotypic adjustment
+                                     reuse.pANN = FALSE, sct = FALSE) # false because this is the first time running doubletfinder on this sample (dont have a pANN to reuse), also did not run sctransform on the data so false also 
+
+
+# VISUALIZE DOUBLETS
+DimPlot(srat_ch_dev_filtered, reduction = 'umap', group.by = "DF.classifications_0.25_0.18_691")
+table(srat_ch_dev_filtered@meta.data$DF.classifications_0.25_0.18_691)
+```
+
+```{r}
+ch_dia_counts <- Read10X("/Users/aakritisingh/Documents/SoupX_out_files/SoupX_out_ch_dia_counts")
+srat_ch_dia <- CreateSeuratObject(counts = ch_dia_counts, project = "CH_Diapause")
+srat_ch_dia
+# PREPROCESSING
+# srat_ch_dia[["RNA"]]$counts.Peaks <- NULL
+srat_ch_dia[["percent.mt"]] <- PercentageFeatureSet(srat_ch_dia, features = c("KEG92-p13", "KEG92-p12", "KEG92-p11", "KEG92-p10", "KEG92-p09", "KEG92-p08", "KEG92-p07", "KEG92-p06", "KEG92-p05", "KEG92-p04", "KEG92-p03", "KEG92-p02", "KEG92-p01"), assay = 'RNA')
+VlnPlot(srat_ch_dia, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol=3)
+srat_ch_dia_filtered <- subset(srat_ch_dia, subset = nFeature_RNA > 200 & nFeature_RNA < 1000 & percent.mt < 10)
+VlnPlot(srat_ch_dia_filtered, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+srat_ch_dia_filtered <- NormalizeData(object = srat_ch_dia_filtered)
+srat_ch_dia_filtered <- FindVariableFeatures(object = srat_ch_dia_filtered)
+srat_ch_dia_filtered <- ScaleData(object = srat_ch_dia_filtered)
+srat_ch_dia_filtered <- RunPCA(object = srat_ch_dia_filtered)
+ElbowPlot(srat_ch_dia_filtered)
+srat_ch_dia_filtered <- FindNeighbors(object = srat_ch_dia_filtered, dims = 1:20) # must be adjusted per sample
+srat_ch_dia_filtered <- FindClusters(object = srat_ch_dia_filtered)
+srat_ch_dia_filtered <- RunUMAP(object = srat_ch_dia_filtered, dims = 1:20)
+
+# PK IDENTIFICATION
+sweep.res.list_srat_ch_dia_filtered <- paramSweep(srat_ch_dia_filtered, PCs = 1:20, sct = FALSE)
+sweep.stats_srat_ch_dia_filtered <- summarizeSweep(sweep.res.list_srat_ch_dia_filtered, GT = FALSE)
+sweep.stats_srat_ch_dia_filtered
+bcmvn_srat_ch_dia_filtered <- find.pK(sweep.stats_srat_ch_dia_filtered)
+ggplot(bcmvn_srat_ch_dia_filtered, aes(pK, BCmetric, group = 1)) +
+  geom_point() +
+  geom_line()
+pK <- bcmvn_srat_ch_dia_filtered %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK) 
+pK <- as.numeric(as.character(pK[[1]]))
+
+# HOMOTYPIC DOUBLETS
+annotations <- srat_ch_dia_filtered@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)         
+nExp_poi <- round(0.046*nrow(srat_ch_dia_filtered@meta.data))  # must be adjusted per sample
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+ 
+# RUN DOUBLET FINDER 
+srat_ch_dia_filtered <- doubletFinder(srat_ch_dia_filtered, 
+                                     PCs = 1:20, # based on dims
+                                     pN = 0.25, # default set
+                                     pK = pK, # provide optimal pK value through the variable
+                                     nExp = nExp_poi.adj, # provide expected # of doublets after homtotypic adjustment
+                                     reuse.pANN = FALSE, sct = FALSE) # false because this is the first time running doubletfinder on this sample (dont have a pANN to reuse), also did not run sctransform on the data so false also 
+
+# VISUALIZE DOUBLETS
+DimPlot(srat_ch_dia_filtered, reduction = 'umap', group.by = "DF.classifications_0.25_0.3_172")
+table(srat_ch_dia_filtered@meta.data$DF.classifications_0.25_0.3_172)
+```
+
+```{r}
+sg_dev_counts <- Read10X("/Users/aakritisingh/Documents/SoupX_out_files/SoupX_out_sg_dev_counts")
+srat_sg_dev <- CreateSeuratObject(counts = sg_dev_counts, project = "SG_Development")
+srat_sg_dev
+# PREPROCESSING
+# srat_sg_dev[["RNA"]]$counts.Peaks <- NULL
+srat_sg_dev[["percent.mt"]] <- PercentageFeatureSet(srat_sg_dev, features = c("KEG92-p13", "KEG92-p12", "KEG92-p11", "KEG92-p10", "KEG92-p09", "KEG92-p08", "KEG92-p07", "KEG92-p06", "KEG92-p05", "KEG92-p04", "KEG92-p03", "KEG92-p02", "KEG92-p01"), assay = 'RNA')
+VlnPlot(srat_sg_dev, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol=3)
+srat_sg_dev_filtered <- subset(srat_sg_dev, subset = nFeature_RNA > 200 & nFeature_RNA < 1200 & percent.mt < 10)
+VlnPlot(srat_sg_dev_filtered, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+srat_sg_dev_filtered <- NormalizeData(object = srat_sg_dev_filtered)
+srat_sg_dev_filtered <- FindVariableFeatures(object = srat_sg_dev_filtered)
+srat_sg_dev_filtered <- ScaleData(object = srat_sg_dev_filtered)
+srat_sg_dev_filtered <- RunPCA(object = srat_sg_dev_filtered)
+ElbowPlot(srat_sg_dev_filtered)
+srat_sg_dev_filtered <- FindNeighbors(object = srat_sg_dev_filtered, dims = 1:20) # must be adjusted per sample
+srat_sg_dev_filtered <- FindClusters(object = srat_sg_dev_filtered)
+srat_sg_dev_filtered <- RunUMAP(object = srat_sg_dev_filtered, dims = 1:20)
+
+# PK IDENTIFICATION
+sweep.res.list_srat_sg_dev_filtered <- paramSweep(srat_sg_dev_filtered, PCs = 1:20, sct = FALSE)
+sweep.stats_srat_sg_dev_filtered <- summarizeSweep(sweep.res.list_srat_sg_dev_filtered, GT = FALSE)
+sweep.stats_srat_sg_dev_filtered
+bcmvn_srat_sg_dev_filtered <- find.pK(sweep.stats_srat_sg_dev_filtered)
+ggplot(bcmvn_srat_sg_dev_filtered, aes(pK, BCmetric, group = 1)) +
+  geom_point() +
+  geom_line()
+pK <- bcmvn_srat_sg_dev_filtered %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK) 
+pK <- as.numeric(as.character(pK[[1]]))
+
+# HOMOTYPIC DOUBLETS
+annotations <- srat_sg_dev_filtered@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)         
+nExp_poi <- round(0.077*nrow(srat_sg_dev_filtered@meta.data))  # must be adjusted per sample
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+ 
+# RUN DOUBLET FINDER 
+srat_sg_dev_filtered <- doubletFinder(srat_sg_dev_filtered, 
+                                     PCs = 1:20, # based on dims
+                                     pN = 0.25, # default set
+                                     pK = pK, # provide optimal pK value through the variable
+                                     nExp = nExp_poi.adj, # provide expected # of doublets after homtotypic adjustment
+                                     reuse.pANN = FALSE, sct = FALSE) # false because this is the first time running doubletfinder on this sample (dont have a pANN to reuse), also did not run sctransform on the data so false also 
+
+
+# VISUALIZE DOUBLETS
+DimPlot(srat_sg_dev_filtered, reduction = 'umap', group.by = "DF.classifications_0.25_0.16_1282")
+table(srat_sg_dev_filtered@meta.data$DF.classifications_0.25_0.16_1282)
+```
+
+```{r}
+sg_dia_counts <- Read10X("/Users/aakritisingh/Documents/SoupX_out_files/SoupX_out_sg_dia_counts")
+srat_sg_dia <- CreateSeuratObject(counts = sg_dia_counts, project = "SG_Diapause")
+srat_sg_dia
+# PREPROCESSING
+# srat_sg_dev[["RNA"]]$counts.Peaks <- NULL
+srat_sg_dia[["percent.mt"]] <- PercentageFeatureSet(srat_sg_dia, features = c("KEG92-p13", "KEG92-p12", "KEG92-p11", "KEG92-p10", "KEG92-p09", "KEG92-p08", "KEG92-p07", "KEG92-p06", "KEG92-p05", "KEG92-p04", "KEG92-p03", "KEG92-p02", "KEG92-p01"), assay = 'RNA')
+VlnPlot(srat_sg_dia, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol=3)
+srat_sg_dia_filtered <- subset(srat_sg_dia, subset = nFeature_RNA > 200 & nFeature_RNA < 1200 & percent.mt < 10)
+VlnPlot(srat_sg_dia_filtered, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+srat_sg_dia_filtered <- NormalizeData(object = srat_sg_dia_filtered)
+srat_sg_dia_filtered <- FindVariableFeatures(object = srat_sg_dia_filtered)
+srat_sg_dia_filtered <- ScaleData(object = srat_sg_dia_filtered)
+srat_sg_dia_filtered <- RunPCA(object = srat_sg_dia_filtered)
+ElbowPlot(srat_sg_dia_filtered)
+srat_sg_dia_filtered <- FindNeighbors(object = srat_sg_dia_filtered, dims = 1:20) # must be adjusted per sample
+srat_sg_dia_filtered <- FindClusters(object = srat_sg_dia_filtered)
+srat_sg_dia_filtered <- RunUMAP(object = srat_sg_dia_filtered, dims = 1:20)
+
+# PK IDENTIFICATION
+sweep.res.list_srat_sg_dia_filtered <- paramSweep(srat_sg_dia_filtered, PCs = 1:20, sct = FALSE)
+sweep.stats_srat_sg_dia_filtered <- summarizeSweep(sweep.res.list_srat_sg_dia_filtered, GT = FALSE)
+sweep.stats_srat_sg_dia_filtered
+bcmvn_srat_sg_dia_filtered <- find.pK(sweep.stats_srat_sg_dia_filtered)
+ggplot(bcmvn_srat_sg_dia_filtered, aes(pK, BCmetric, group = 1)) +
+  geom_point() +
+  geom_line()
+pK <- bcmvn_srat_sg_dia_filtered %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK) 
+pK <- as.numeric(as.character(pK[[1]]))
+
+# HOMOTYPIC DOUBLETS
+annotations <- srat_sg_dia_filtered@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)         
+nExp_poi <- round(0.077*nrow(srat_sg_dia_filtered@meta.data))  # must be adjusted per sample
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+ 
+# RUN DOUBLET FINDER 
+srat_sg_dia_filtered <- doubletFinder(srat_sg_dia_filtered, 
+                                     PCs = 1:20, # based on dims
+                                     pN = 0.25, # default set
+                                     pK = pK, # provide optimal pK value through the variable
+                                     nExp = nExp_poi.adj, # provide expected # of doublets after homtotypic adjustment
+                                     reuse.pANN = FALSE, sct = FALSE) # false because this is the first time running doubletfinder on this sample (dont have a pANN to reuse), also did not run sctransform on the data so false also 
+
+
+# VISUALIZE DOUBLETS
+DimPlot(srat_sg_dia_filtered, reduction = 'umap', group.by = "DF.classifications_0.25_0.3_695")
+table(srat_sg_dia_filtered@meta.data$DF.classifications_0.25_0.3_695)
+```
+
+```{r}
+# Visualize doublets 
+srat_ch_dev_filtered$DF.classifications <- srat_ch_dev_filtered$DF.classifications_0.25_0.18_691
+head(srat_ch_dev_filtered@meta.data)
+srat_ch_dia_filtered$DF.classifications <- srat_ch_dia_filtered$DF.classifications_0.25_0.3_172
+srat_sg_dev_filtered$DF.classifications <- srat_sg_dev_filtered$DF.classifications_0.25_0.16_1282
+srat_sg_dia_filtered$DF.classifications <- srat_sg_dia_filtered$DF.classifications_0.25_0.3_695
+```
+
+
+```{r}
+# Merge all the samples together 
+merged_srat <- merge(srat_ch_dev_filtered, y = c(srat_ch_dia_filtered, srat_sg_dev_filtered, srat_sg_dia_filtered), add.cell.ids = c("CH_Development", "CH_Diapause", "SG_Development", "SG_Diapause"), project = "multiome", merge.data = TRUE)
+```
+
+```{r}
+# Run seurat pre-processing and visualize 
+merged_srat <- NormalizeData(merged_srat)
+merged_srat <- FindVariableFeatures(merged_srat)
+merged_srat <- ScaleData(merged_srat)
+merged_srat <- RunPCA(merged_srat)
+ElbowPlot(merged_srat)
+merged_srat <- RunUMAP(merged_srat, dims = 1:20)
+DimPlot(merged_srat, reduction = "umap", group.by = "orig.ident", label = TRUE)
+
+merged_srat <- FindNeighbors(merged_srat, dims = 1:20)
+merged_srat <- FindClusters(merged_srat, resolution = 0.3)
+DimPlot(merged_srat)
+```
+
+```{r}
+DimPlot(merged_srat, reduction = "umap", group.by = "DF.classifications", label = TRUE)
+
+```

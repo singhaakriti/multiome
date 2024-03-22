@@ -1,0 +1,3 @@
+fastqs,sample,library_type
+/wynton/group/singh/multiome/inputs/RNA/RNA_SG_DEV,RNA_SG_DEV_CKDL230044629-1A_22GM7KLT3,Gene Expression
+/wynton/group/singh/multiome/inputs/ATAC/ATAC_SG_DEV,ATAC_SG_DEV_CKDL230044625-1A_22HC5KLT3,Chromatin Accessibility

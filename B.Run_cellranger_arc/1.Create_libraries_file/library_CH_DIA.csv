@@ -1,0 +1,3 @@
+fastqs,sample,library_type
+/wynton/group/singh/multiome/inputs/RNA/RNA_CH_DIA,RNA_CH_DIA_CKDL230044632-1A_22GM7KLT3,Gene Expression
+/wynton/group/singh/multiome/inputs/ATAC/ATAC_CH_DIA,ATAC_CH_DIA_CKDL230044628-1A_22HC5KLT3,Chromatin Accessibility
